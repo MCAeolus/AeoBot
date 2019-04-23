@@ -109,7 +109,7 @@ class Connect4Command {
 				return
 			}
 
-			var newSession = new Connect4Session(user1, user2, <channel>, this);
+			var newSession = new Connect4Session(user1, user2, message.channel, this);
 			this.sessions.push(newSession);
 
 			var acceptingMessage = await message.channel.send("👍 " + pinging(user2) + ", you have been invited by " + user1.username + " to play Connect4. Press ✅ to accept, or ❎ to deny the request. This request will timeout in 30 seconds.")
@@ -144,7 +144,12 @@ class Connect4Command {
 		}
 	}
 }
-class Connect4Session {
+
+const redMarker = "🔴";
+const blueMarker = "🔵";
+const emptyMarker = "⬛";
+const positionalMarker = "";
+class Connect4Session { //red starts, which player gets red is random chance
 
 	async constructor(player1, player2, channel, controller) {
 		this.player1 = player1;
@@ -160,7 +165,7 @@ class Connect4Session {
 		this.width = 7;
 		this.height = 6;
 		
-		this.map = Array(height).fill(0).map(x => Array(width).fill(0));
+		this.map = Array(height).fill(0).map(x => Array(width).fill(emptyMarker));
 		
 		this.boardMessage = null;
 	}
@@ -173,8 +178,12 @@ class Connect4Session {
 		
 	}
 	
-	drawBoard() {
-		
+	async drawBoard() {
+		return await channel.send(""); 
+	}
+	
+	flipPlayer(user) {
+		return (player1 === user)? player2 : player1
 	}
 
 	startSession() {
@@ -233,8 +242,6 @@ bot.on('ready', () => {
 
 	console.log("bot running.");
 	bot.user.setActivity("✅ Hanny's number 1 fan 💋 ( " + prefix + "help for info )");
-
-
 
 });
 
