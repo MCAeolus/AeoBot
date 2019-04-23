@@ -1,9 +1,9 @@
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function pinging(user) {
-  return "<@" + user.id + ">"
+	return "<@" + user.id + ">"
 }
 
 const discord = require('discord.js');
@@ -24,16 +24,17 @@ class TestCommand {
 		var m = await message.channel.send("testing...");
 		m.react('✅');
 
-    const word = "testing..."
-    for(var i = 0; i <= word.length; i++) {
-      await sleep(250);
-      m.edit("◼️".repeat(i) + word.slice((i - 1 < 0) ? 0 : i - 1, i) + "◼️".repeat(word.length - i))
-    }
-    await sleep(250);
-    m.edit("◼️".repeat(word.length))
-    await sleep(500);
-    m.delete();
-    message.delete();
+		const word = "testing..."
+		
+		for(var i = 0; i <= word.length; i++) {
+			await sleep(250);
+			m.edit("◼️".repeat(i) + word.slice((i - 1 < 0) ? 0 : i - 1, i) + "◼️".repeat(word.length - i))
+		}
+		await sleep(250);
+		m.edit("◼️".repeat(word.length))
+		await sleep(500);
+		m.delete();
+		message.delete();
 	}
 
 }
@@ -63,108 +64,141 @@ class Connect4Command {
 		return ['connect4'];
 	}
 
-  isCreatedMatch(user) {
-    this.sessions.forEach(session => {
-      if(session.player1.id === user.id || session.player2.id === user.id) return true;
-    });
-    return false;
+	isCreatedMatch(user) {
+		this.sessions.forEach(
+		session => {
+			if(session.player1.id === user.id || session.player2.id === user.id) return true;
+		});
+		return false;
+	}
 
-  }
+	endSession(session) {
+		this.sessions = this.sessions.filter((val, index, arr) => val != session);
+		session.sessionEnded = true;
+		session.endSession();
+	}
 
-  endSession(session) {
-    this.sessions = this.sessions.filter((val, index, arr) => val != session);
-    session.sessionEnded = true;
-    session.endSession();
-  }
-
-  async timeoutMessage(original, sending, timeout, userTimeout) {
-    var m = await original.channel.send(sending)
-    if(userTimeout >= 0) original.delete(userTimeout).catch();
-    if(timeout > 0) m.delete(timeout).catch();
-  }
+	async timeoutMessage(original, sending, timeout, userTimeout) {
+		var m = await original.channel.send(sending)
+		if(userTimeout >= 0) original.delete(userTimeout).catch();
+		if(timeout > 0) m.delete(timeout).catch();
+	}
 
 	async run(args, bot, message, cmdLabel) {
 		if(args.length == 0) {
-      this.timeoutMessage(message, "❌ Please specify a user to play Connect 4 with. (example usage: " + prefix + cmdLabel + " " + pinging(message.author) + ")", 5000, 0)
+			this.timeoutMessage(message, "❌ Please specify a user to play Connect 4 with. (example usage: " + prefix + cmdLabel + " " + pinging(message.author) + ")", 5000, 0)
 			return;
+		} else {
+			const user1 = message.author;
+			const user2 = await bot.fetchUser(args[0].slice(2,args[0].length - 1)).catch(
+			er => {
+				this.timeoutMessage(message, "❌ Invalid user specified! (example usage: " + prefix + cmdLabel + " " + pinging(message.author) + ")", 5000, 5000)
+				return
+			})
+			
+			if(user2 === user1) {
+				this.timeoutMessage(message, "❌ You cannot play by yourself!", 5000, 0);
+				return
+			}
+
+			if(this.isCreatedMatch(user1)) {
+				this.timeoutMessage(message, "❌ You have already sent an invite or are in a match! (to end your session, type " + prefix + "endsession)", 5000, 0)
+				return
+			}else if(this.isCreatedMatch(user2)) {
+				this.timeoutMessage(message, "❌ Specificed user is either already invited to a session or is currently playing a game!", 5000, 0)
+				return
+			}
+
+			var newSession = new Connect4Session(user1, user2, <channel>, this);
+			this.sessions.push(newSession);
+
+			var acceptingMessage = await message.channel.send("👍 " + pinging(user2) + ", you have been invited by " + user1.username + " to play Connect4. Press ✅ to accept, or ❎ to deny the request. This request will timeout in 30 seconds.")
+			acceptingMessage.react("✅")
+			await sleep(50);
+			acceptingMessage.react("❎")
+
+			acceptingMessage.delete(30000).catch();
+			
+			var collectorAccept = acceptingMessage.createReactionCollector((react, user) => user.id === user2.id && react.emoji.name === "✅", { time: 30000});
+			var collectorDeny = acceptingMessage.createReactionCollector((react, user) => user.id === user2.id && react.emoji.name === "❎", { time: 30000});
+
+			collectorAccept.on('collect', (r => {
+				acceptingMessage.delete();
+				message.channel.send(pinging(user1) + ", " + user2.username + " accepted your game!");
+				newSession.startSession();
+				return;
+			}).bind(this));
+
+			collectorDeny.on('collect', (r => {
+				acceptingMessage.delete();
+				message.channel.send(pinging(user1) + ", " + user2.username + " denied your game.");
+				this.endSession(newSession);
+				return;
+			}).bind(this));
+			collectorAccept.on('end', (e => {
+				if(!newSession.isSessionStarted && !newSession.sessionEnded) {
+					this.endSession(newSession);
+					this.timeoutMessage(message, "❌ Session timed out.", 5000, 0)
+				}
+			}).bind(this));
 		}
-
-		else {
-      const user1 = message.author;
-      const user2 = await bot.fetchUser(args[0].slice(2,args[0].length - 1)).catch(er => {
-        this.timeoutMessage(message, "❌ Invalid user specified! (example usage: " + prefix + cmdLabel + " " + pinging(message.author) + ")", 5000, 5000)
-        return
-      })
-
-      if(this.isCreatedMatch(user1)) {
-        this.timeoutMessage(message, "❌ You have already sent an invite or are in a match! (to end your session, type " + prefix + "endsession)", 5000, 0)
-        return
-      }else if(this.isCreatedMatch(user2)) {
-        this.timeoutMessage(message, "❌ Specificed user is either already invited to a session or is currently playing a game!", 5000, 0)
-        return
-      }
-
-      var newSession = new Connect4Session(user1, user2);
-      this.sessions.push(newSession);
-
-      var acceptingMessage = await message.channel.send("👍 " + pinging(user2) + ", you have been invited by " + user1.username + " to play Connect4. Press ✅ to accept, or ❎ to deny the request. This request will timeout in 30 seconds.")
-      acceptingMessage.react("✅")
-      await sleep(50);
-      acceptingMessage.react("❎")
-
-      acceptingMessage.delete(30000).catch();
-
-      var collectorAccept = acceptingMessage.createReactionCollector((react, user) => user.id === user2.id && react.emoji.name === "✅", { time: 30000});
-      var collectorDeny = acceptingMessage.createReactionCollector((react, user) => user.id === user2.id && react.emoji.name === "❎", { time: 30000});
-
-      collectorAccept.on('collect', (r => {
-        acceptingMessage.delete();
-        message.channel.send(pinging(user1) + ", " + user2.username + " accepted your game!");
-        newSession.startSession();
-        return;
-      }).bind(this));
-
-      collectorDeny.on('collect', (r => {
-        acceptingMessage.delete();
-        message.channel.send(pinging(user1) + ", " + user2.username + " denied your game.");
-        this.endSession(newSession);
-        return;
-      }).bind(this));
-
-      collectorAccept.on('end', (e => {
-        if(!newSession.isSessionStarted && !newSession.sessionEnded) {
-           this.endSession(newSession);
-           this.timeoutMessage(message, "❌ Session timed out.", 5000, 0)
-         }
-      }).bind(this));
-
-		}
-
 	}
-
 }
 class Connect4Session {
 
-	constructor(player1, player2) {
+	async constructor(player1, player2, channel, controller) {
 		this.player1 = player1;
 		this.player2 = player2;
-    this.isSessionStarted = false;
-    this.sessionEnded = false;
+		
+		this.channel = channel;
+		
+		this.controller = controller;
+		
+		this.isSessionStarted = false;
+		this.sessionEnded = false;
+		
+		this.width = 7;
+		this.height = 6;
+		
+		this.map = Array(height).fill(0).map(x => Array(width).fill(0));
+		
+		this.boardMessage = null;
+	}
+	
+	createControls(user) {
+		
 	}
 
-  endSession() {
+	endSession() {
+		
+	}
+	
+	drawBoard() {
+		
+	}
 
-  }
-
-  startSession() {
-    if(this.isSessionStarted == false) {
-      this.isSessionStarted = true
-
-    }
-    else return;
-  }
+	startSession() {
+		if(this.isSessionStarted == false) {
+			this.isSessionStarted = true
+			this.boardMessage = channel.send("");
+			
+		}
+		else return;
+	}
 
 }
+
+class EndGameCommand {
+	
+	get alias() {
+		return ['endgame', 'eg'];
+	}
+	
+	async run(args, bot, message) {
+		
+	}
+}
+
 
 class SayCommand {
 
