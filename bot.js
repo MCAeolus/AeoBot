@@ -216,7 +216,7 @@ class Connect4Session { //red starts, which player gets red is random chance
 		var embed = new Discord.RichEmbed()
 					.setTitle("Connect4")
 					.setAuthor(user1.username + " vs. " + user2.username)
-					.set
+					.setFooter("You have 15 ")
 		return await channel.send({embed});
 	}
 
