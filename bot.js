@@ -25,7 +25,7 @@ class TestCommand {
 		m.react('✅');
 
 		const word = "testing..."
-		
+
 		for(var i = 0; i <= word.length; i++) {
 			await sleep(250);
 			m.edit("◼️".repeat(i) + word.slice((i - 1 < 0) ? 0 : i - 1, i) + "◼️".repeat(word.length - i))
@@ -95,7 +95,7 @@ class Connect4Command {
 				this.timeoutMessage(message, "❌ Invalid user specified! (example usage: " + prefix + cmdLabel + " " + pinging(message.author) + ")", 5000, 5000)
 				return
 			})
-			
+
 			if(user2 === user1) {
 				this.timeoutMessage(message, "❌ You cannot play by yourself!", 5000, 0);
 				return
@@ -118,7 +118,7 @@ class Connect4Command {
 			acceptingMessage.react("❎")
 
 			acceptingMessage.delete(30000).catch();
-			
+
 			var collectorAccept = acceptingMessage.createReactionCollector((react, user) => user.id === user2.id && react.emoji.name === "✅", { time: 30000});
 			var collectorDeny = acceptingMessage.createReactionCollector((react, user) => user.id === user2.id && react.emoji.name === "❎", { time: 30000});
 
@@ -148,40 +148,78 @@ class Connect4Command {
 const redMarker = "🔴";
 const blueMarker = "🔵";
 const emptyMarker = "⬛";
-const positionalMarker = "";
+const positionalMarker = "⬇️";
 class Connect4Session { //red starts, which player gets red is random chance
+
+	/**
+		- new message sent per player turn
+		- message edited during turn
+			* signify updates to cursor
+			*
+	**/
 
 	async constructor(player1, player2, channel, controller) {
 		this.player1 = player1;
 		this.player2 = player2;
-		
+
 		this.channel = channel;
-		
+
 		this.controller = controller;
-		
+
 		this.isSessionStarted = false;
 		this.sessionEnded = false;
-		
+
 		this.width = 7;
 		this.height = 6;
-		
+
 		this.map = Array(height).fill(0).map(x => Array(width).fill(emptyMarker));
-		
+
 		this.boardMessage = null;
+
+		this.playerOnRed = if(Math.random() < 0.5) ? this.player1 : this.player2
+
+		this.cursorPosition = 0;
 	}
-	
-	createControls(user) {
-		
+
+	async createControls(user) {
+		if(this.boardMessage != null) {
+			this.boardMessage.react('◀️')
+			await sleep(50)
+			this.boardMessage.react('▶️');
+
+			var collectorLeft = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "◀️", {time:15000} )
+			var collectorRight = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "▶️", {time:15000} )
+
+			this.cursorPosition = 0;
+
+			collectorLeft.on('collect', (r => {
+				currentCursorPosition = currentCursorPosition > 0 ? currentCursorPosition - 1 : 0;
+				return;
+			}).bind(this))
+			collectorRight.on('collect', (r => {
+				currentCursorPosition = currentCursorPosition < (this.width - 1) ? currentCursorPosition + 1 : (this.width - 1);
+				return;
+			}).bind(this))
+
+		}
+	}
+
+	updateCursor() {
+
 	}
 
 	endSession() {
-		
+
 	}
-	
+
 	async drawBoard() {
-		return await channel.send(""); 
+		var embed = new Discord.RichEmbed()
+					.setTitle("Connect4")
+					.setAuthor(user1.username + " vs. " + user2.username)
+					.set
+		return await channel.send({embed});
 	}
-	
+
 	flipPlayer(user) {
 		return (player1 === user)? player2 : player1
 	}
@@ -190,7 +228,7 @@ class Connect4Session { //red starts, which player gets red is random chance
 		if(this.isSessionStarted == false) {
 			this.isSessionStarted = true
 			this.boardMessage = channel.send("");
-			
+
 		}
 		else return;
 	}
@@ -198,13 +236,13 @@ class Connect4Session { //red starts, which player gets red is random chance
 }
 
 class EndGameCommand {
-	
+
 	get alias() {
 		return ['endgame', 'eg'];
 	}
-	
+
 	async run(args, bot, message) {
-		
+
 	}
 }
 
