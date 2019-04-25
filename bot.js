@@ -77,6 +77,18 @@ class Connect4Command {
 		session.sessionEnded = true;
 		session.endSession();
 	}
+	
+	endPlayerSession(user) {
+		if(this.isCreatedMatch(user)) {
+			this.sessios.forEach( s => {
+				if(s.player1.id === user.id || s.player2.id === user.id) {
+					this.endSession(s);
+					return true;
+				}
+			});
+		}
+		return false;
+	}
 
 	async timeoutMessage(original, sending, timeout, userTimeout) {
 		var m = await original.channel.send(sending)
@@ -96,13 +108,13 @@ class Connect4Command {
 				return
 			})
 
-			if(user2 === user1) {
-				this.timeoutMessage(message, "❌ You cannot play by yourself!", 5000, 0);
-				return
-			}
+			//if(user2 === user1) {
+			//	this.timeoutMessage(message, "❌ You cannot play by yourself!", 5000, 0);
+			//	return
+			//}
 
 			if(this.isCreatedMatch(user1)) {
-				this.timeoutMessage(message, "❌ You have already sent an invite or are in a match! (to end your session, type " + prefix + "endsession)", 5000, 0)
+				this.timeoutMessage(message, "❌ You have already sent an invite or are in a match! (to end your session, type " + prefix + "endgame)", 5000, 0)
 				return
 			}else if(this.isCreatedMatch(user2)) {
 				this.timeoutMessage(message, "❌ Specificed user is either already invited to a session or is currently playing a game!", 5000, 0)
@@ -128,7 +140,6 @@ class Connect4Command {
 				newSession.startSession();
 				return;
 			}).bind(this));
-
 			collectorDeny.on('collect', (r => {
 				acceptingMessage.delete();
 				message.channel.send(pinging(user1) + ", " + user2.username + " denied your game.");
@@ -156,9 +167,13 @@ class Connect4Session { //red starts, which player gets red is random chance
 		- message edited during turn
 			* signify updates to cursor
 			*
+			
+			
+		- customize your marker
+		- list a number instead of reactions
 	**/
 
-	async constructor(player1, player2, channel, controller) {
+	constructor(player1, player2, channel, controller) {
 		this.player1 = player1;
 		this.player2 = player2;
 
@@ -172,77 +187,209 @@ class Connect4Session { //red starts, which player gets red is random chance
 		this.width = 7;
 		this.height = 6;
 
-		this.map = Array(height).fill(0).map(x => Array(width).fill(emptyMarker));
+		this.map = Array(this.height).fill(0).map(x => Array(this.width).fill(emptyMarker));
 
 		this.boardMessage = null;
 
-		this.playerOnRed = if(Math.random() < 0.5) ? this.player1 : this.player2
-
-		this.cursorPosition = 0;
+		this.playerOnRed = (Math.random() < 0.5) ? this.player1 : this.player2
+		
+		this.currentPlayingUser = null;
 	}
 
+	async newTurn(user) {
+		
+	}
+	
+	
+	/** old method using reacts for cursor position	
 	async createControls(user) {
 		if(this.boardMessage != null) {
-			this.boardMessage.react('◀️')
-			await sleep(50)
-			this.boardMessage.react('▶️');
+			this.boardMessage.react("⬅")
+			await sleep(500)
+			this.boardMessage.react("👍");
+			await sleep(500)
+			this.boardMessage.react("➡");
 
-			var collectorLeft = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "◀️", {time:15000} )
-			var collectorRight = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "▶️", {time:15000} )
 
+			var collectorLeft = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "⬅", {time:15000} )
+			var collectorRight = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "➡", {time:15000} )
+			var collectorChoose = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "👍", {time:15000} )
+			
 			this.cursorPosition = 0;
+		
+			var isAlreadyFinished = false;
 
 			collectorLeft.on('collect', (r => {
-				currentCursorPosition = currentCursorPosition > 0 ? currentCursorPosition - 1 : 0;
+				this.cursorPosition = this.cursorPosition > 0 ? this.cursorPosition - 1 : 0;
+				this.updateCursor();
 				return;
 			}).bind(this))
 			collectorRight.on('collect', (r => {
-				currentCursorPosition = currentCursorPosition < (this.width - 1) ? currentCursorPosition + 1 : (this.width - 1);
+				this.cursorPosition = this.cursorPosition < (this.width - 1) ? this.cursorPosition + 1 : (this.width - 1);
+				this.updateCursor();
 				return;
 			}).bind(this))
+			collectorChoose.on('collect', (r => {
+				isAlreadyFinished = this.playFromPosition(user);
+				return;
+			}).bind(this))
+			
+			
+			collectorLeft.on('end', (e => {
+				if(!isAlreadyFinished) this.finishTurn(user);
+			}).bind(this));
+			
+			
+			this.channel.send(pinging(user) + ", it's your turn!");
 
 		}
 	}
+	**/
 
-	updateCursor() {
-
+	playFromPosition(user, position) {
+		if(this.map[0][position] !== emptyMarker) {
+			this.channel.send("That column is full!");
+			return false
+		}
+		
+		for(var i = 0; i < this.height; i++) {
+			if(this.map[i][position] === emptyMarker) {
+				if(i == this.height-1) {
+					this.map[i][position] = (user === this.playerOnRed) ? redMarker : blueMarker;
+					break;
+				}
+				else if(this.map[i + 1][position] === emptyMarker) continue;
+				else {
+					this.map[i][position] = (user === this.playerOnRed) ? redMarker : blueMarker;
+					break;
+				}
+			}
+		}
+		
+		this.finishTurn(user);
+		return true;
 	}
+	
+	async finishTurn(user) {
+		//crawl board to find if 4 are connected
+		//var blueWins = this.crawlBoard(blueMarker);
+		//var redWins = this.crawlBoard(redMarker);
+		if(this.sessionEnded) return;
+		
+		this.boardMessage = await this.drawBoard();
+		this.currentPlayingUser = this.flipPlayer(user);
+		this.channel.send(pinging(this.currentPlayingUser) + ", it's your turn!");
+	}
+	
+	crawlBoard(key) {
+		
+		var tempMap = this.map.slice(0);
+		
+		for(var i = 0; i < this.height; i++)
+			for(var j = 0; j < this.width; j++) {
+				if(tempMap[i][j] !== key) continue;
+				
+				
+				for(var iy = (i > 0 ? -1 : 0); iy <= (i < this.height-1 ? 1 : 0); iy++)
+					for(var jx = (j > 0 ? -1 : 0); jx <= (j < this.width-1 ? 1 : 0); jx++) {
+						
+						if(tempMap[i]){}
+						
+					}
+				
+			}
+	}
+	
+	search(a, key) {
+		
+		
+	}
+	
+	/**
+	updateCursor() {
+		var embed = new discord.RichEmbed()
+					.setTitle("Connect4")
+					.setAuthor(this.player1.username + " vs. " + this.player2.username)
+					.setFooter("You have 15 seconds to choose your move.");
+		
+		embed.addField("Cursor", emptyMarker.repeat(this.cursorPosition) + positionalMarker + emptyMarker.repeat((this.width-1) - this.cursorPosition)); 
+		embed.addField("Map", this.map.join("\n").replace(/,/g, ''));
+		
+		this.boardMessage.edit({embed});
+	}
+	**/
 
 	endSession() {
-
+		if(this.boardMessage != null) {
+			this.boardMessage.delete();
+			this.channel.send("Game was ended!");
+		}
+		registeredListenersClasses.remove(this);
 	}
 
 	async drawBoard() {
-		var embed = new Discord.RichEmbed()
+		var embed = new discord.RichEmbed()
 					.setTitle("Connect4")
-					.setAuthor(user1.username + " vs. " + user2.username)
-					.setFooter("You have 15 ")
-		return await channel.send({embed});
+					.setAuthor(this.player1.username + " vs. " + this.player2.username)
+					.setFooter("You have 15 seconds to choose your move.");
+		
+		embed.addField("Map", "1⃣2⃣3⃣4⃣5⃣6⃣7⃣" + "\n" +
+							  this.map.join("\n").replace(/,/g, ''));
+		
+					
+		//this.map.forEach(a => embed.addField("",a.join("")));
+
+		
+		return await this.channel.send({embed});
 	}
 
 	flipPlayer(user) {
-		return (player1 === user)? player2 : player1
+		return (this.player1 === user)? this.player2 : this.player1
 	}
 
-	startSession() {
+	async startSession() {
 		if(this.isSessionStarted == false) {
+			registeredListenersClasses.push(this);
+			
 			this.isSessionStarted = true
-			this.boardMessage = channel.send("");
-
+			this.boardMessage = await this.drawBoard();
+			this.currentPlayingUser = this.playerOnRed;
 		}
 		else return;
+	}
+	
+	listenEvent(msg) {
+		if(this.currentPlayingUser !== null && this.currentPlayingUser.id === msg.author.id) {
+			if(msg.content === prefix + "endgame" || msg.content === prefix + "eg") return;
+			
+			
+			var num = parseInt(msg.content);
+			msg.delete();
+			if(isNaN(num) || num > this.width || num < 1)
+				this.channel.send("That's not a valid number! Try again.");
+			else this.playFromPosition(this.currentPlayingUser, num-1)
+		}
 	}
 
 }
 
 class EndGameCommand {
-
+	
+	constructor() {
+		this.connect4command = null;
+	}
+	
 	get alias() {
 		return ['endgame', 'eg'];
 	}
 
 	async run(args, bot, message) {
-
+		if(!this.connect4command.endPlayerSession(message.author)) {
+			await message.channel.send("You aren't currently in a game!");
+			return
+		}
+		
+		await message.channel.send("Game ended.");
 	}
 }
 
@@ -257,6 +404,7 @@ class SayCommand {
 
 		var rem = args.join(" ");
 
+		console.log(rem);
 		var m = await message.channel.send(rem);
 		message.delete();
 	}
@@ -274,19 +422,27 @@ class HelpCommand {
 
 }
 
-const commands = [new TestCommand(), new OverloadCommand(), new SayCommand(), new HelpCommand(), new Connect4Command()];
+const commands = [new TestCommand(), new OverloadCommand(), new SayCommand(), new HelpCommand(), new Connect4Command(), new EndGameCommand()];
+
+commands[5].connect4command = commands[4];
 
 bot.on('ready', () => {
 
 	console.log("bot running.");
-	bot.user.setActivity("✅ Hanny's number 1 fan 💋 ( " + prefix + "help for info )");
+	bot.user.setActivity("Hanny's number 1 fan 💋 ( " + prefix + "help for info )");
 
 });
+
+const registeredListenersClasses = [];
 
 bot.on('message', async msg => {
 
 	if(msg.author.bot) return;
 
+	
+	registeredListenersClasses.forEach(c => c.listenEvent(msg));
+	
+	
 	if(!msg.content.startsWith(prefix)) return;
 
 	const args = msg.content.slice(prefix.length).trim().split(/ +/g);
