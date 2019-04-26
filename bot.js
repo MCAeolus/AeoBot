@@ -269,6 +269,7 @@ class Connect4Session { //red starts, which player gets red is random chance
 		}
 
 		if(this.checkIfWon(location, marker)) {
+			this.boardMessage = await this.drawBoard();
 			this.channel.send("⭐ " + pinging(user) + " wins! ⭐");
 			this.controller.endSession(this);
 
