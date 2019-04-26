@@ -26,14 +26,11 @@ class TestCommand {
 
 		const word = "testing..."
 
-		for(var i = 0; i <= word.length; i++) {
+		for(var i = 0; i < word.length; i++) {
 			await sleep(250);
-			m.edit("◼️".repeat(i) + word.slice((i - 1 < 0) ? 0 : i - 1, i) + "◼️".repeat(word.length - i))
+			m.edit("◼️".repeat(i) + word.slice((i - 1 < 0) ? 0 : i - 1, i) + "◼️".repeat(word.length-1 - i))
 		}
-		await sleep(250);
-		m.edit("◼️".repeat(word.length))
-		await sleep(500);
-		m.delete();
+		m.delete(5000).catch();
 		message.delete();
 	}
 
@@ -77,7 +74,7 @@ class Connect4Command {
 		session.sessionEnded = true;
 		session.endSession();
 	}
-	
+
 	endPlayerSession(user) {
 		if(this.isCreatedMatch(user)) {
 			this.sessios.forEach( s => {
@@ -108,10 +105,10 @@ class Connect4Command {
 				return
 			})
 
-			//if(user2 === user1) {
-			//	this.timeoutMessage(message, "❌ You cannot play by yourself!", 5000, 0);
-			//	return
-			//}
+			if(user2 === user1) {
+				this.timeoutMessage(message, "❌ You cannot play by yourself!", 5000, 0);
+				return
+			}
 
 			if(this.isCreatedMatch(user1)) {
 				this.timeoutMessage(message, "❌ You have already sent an invite or are in a match! (to end your session, type " + prefix + "endgame)", 5000, 0)
@@ -159,7 +156,7 @@ class Connect4Command {
 const redMarker = "🔴";
 const blueMarker = "🔵";
 const emptyMarker = "⬛";
-const positionalMarker = "⬇️";
+
 class Connect4Session { //red starts, which player gets red is random chance
 
 	/**
@@ -167,8 +164,8 @@ class Connect4Session { //red starts, which player gets red is random chance
 		- message edited during turn
 			* signify updates to cursor
 			*
-			
-			
+
+
 		- customize your marker
 		- list a number instead of reactions
 	**/
@@ -192,16 +189,11 @@ class Connect4Session { //red starts, which player gets red is random chance
 		this.boardMessage = null;
 
 		this.playerOnRed = (Math.random() < 0.5) ? this.player1 : this.player2
-		
+
 		this.currentPlayingUser = null;
 	}
 
-	async newTurn(user) {
-		
-	}
-	
-	
-	/** old method using reacts for cursor position	
+	/** old method using reacts for cursor position
 	async createControls(user) {
 		if(this.boardMessage != null) {
 			this.boardMessage.react("⬅")
@@ -214,9 +206,9 @@ class Connect4Session { //red starts, which player gets red is random chance
 			var collectorLeft = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "⬅", {time:15000} )
 			var collectorRight = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "➡", {time:15000} )
 			var collectorChoose = this.boardMessage.createReactionCollector((react, use) => use.id === user.id && react.emoji.name === "👍", {time:15000} )
-			
+
 			this.cursorPosition = 0;
-		
+
 			var isAlreadyFinished = false;
 
 			collectorLeft.on('collect', (r => {
@@ -233,13 +225,13 @@ class Connect4Session { //red starts, which player gets red is random chance
 				isAlreadyFinished = this.playFromPosition(user);
 				return;
 			}).bind(this))
-			
-			
+
+
 			collectorLeft.on('end', (e => {
 				if(!isAlreadyFinished) this.finishTurn(user);
 			}).bind(this));
-			
-			
+
+
 			this.channel.send(pinging(user) + ", it's your turn!");
 
 		}
@@ -251,95 +243,133 @@ class Connect4Session { //red starts, which player gets red is random chance
 			this.channel.send("That column is full!");
 			return false
 		}
-		
+
+		var marker = (user === this.playerOnRed) ? redMarker : blueMarker;
+		var location = null;
 		for(var i = 0; i < this.height; i++) {
 			if(this.map[i][position] === emptyMarker) {
 				if(i == this.height-1) {
-					this.map[i][position] = (user === this.playerOnRed) ? redMarker : blueMarker;
+					this.map[i][position] = marker;
+					location = {
+						x:position,
+						y:i
+					}
 					break;
 				}
 				else if(this.map[i + 1][position] === emptyMarker) continue;
 				else {
-					this.map[i][position] = (user === this.playerOnRed) ? redMarker : blueMarker;
+					this.map[i][position] = marker;
+					location = {
+						x:position,
+						y:i
+					}
 					break;
 				}
 			}
 		}
-		
+
+		if(this.checkIfWon(location, marker)) {
+			this.channel.send("⭐ " + pinging(user) + " wins! ⭐");
+			this.controller.endSession(this);
+
+			return true;
+		}
+
 		this.finishTurn(user);
 		return true;
 	}
-	
+
+	/**
+	  -  -  -
+	 *  [] -      x:(-1 -> 1)
+	 *  *  * 	  y:(0 -> 1)
+	**/
+
+	checkIfWon(location, marker) {
+
+		var relativeDirections = [
+			{x:-1, y:1},
+			{x:0, y:1},
+			{x:1, y:1},
+			{x:1, y:0}
+		]
+
+		for(const relVector of relativeDirections) {
+			var reciprocal = {x:-relVector.x, y:-relVector.y}
+
+			var sum = 1;
+
+			var relX = location.x + relVector.x;
+			var relY = location.y + relVector.y;
+
+			var repX = location.x + reciprocal.x;
+			var repY = location.y + reciprocal.y;
+
+			sum += this.resolveDirection({x:relX, y:relY}, relVector, marker)
+			sum += this.resolveDirection({x:repX, y:repY}, reciprocal, marker)
+
+			if(sum >= 4) return true;
+		}
+
+		return false;
+	}
+
+	resolveDirection(location, direction, marker) {
+		var sum = 0;
+		if((location.x < this.width && location.y < this.height) && (location.x >= 0 && location.y >= 0))
+			if(this.map[location.y][location.x] === marker)
+				sum = 1 + this.resolveDirection({x:(location.x+direction.x), y:(location.y+direction.y)}, direction, marker);
+
+		return sum;
+	}
+
 	async finishTurn(user) {
-		//crawl board to find if 4 are connected
-		//var blueWins = this.crawlBoard(blueMarker);
-		//var redWins = this.crawlBoard(redMarker);
 		if(this.sessionEnded) return;
-		
+
 		this.boardMessage = await this.drawBoard();
 		this.currentPlayingUser = this.flipPlayer(user);
 		this.channel.send(pinging(this.currentPlayingUser) + ", it's your turn!");
 	}
-	
-	crawlBoard(key) {
-		
-		var tempMap = this.map.slice(0);
-		
-		for(var i = 0; i < this.height; i++)
-			for(var j = 0; j < this.width; j++) {
-				if(tempMap[i][j] !== key) continue;
-				
-				
-				for(var iy = (i > 0 ? -1 : 0); iy <= (i < this.height-1 ? 1 : 0); iy++)
-					for(var jx = (j > 0 ? -1 : 0); jx <= (j < this.width-1 ? 1 : 0); jx++) {
-						
-						if(tempMap[i]){}
-						
-					}
-				
-			}
-	}
-	
-	search(a, key) {
-		
-		
-	}
-	
+
+	/**
+		- check from last placed marker...
+	**/
+
 	/**
 	updateCursor() {
 		var embed = new discord.RichEmbed()
 					.setTitle("Connect4")
 					.setAuthor(this.player1.username + " vs. " + this.player2.username)
 					.setFooter("You have 15 seconds to choose your move.");
-		
-		embed.addField("Cursor", emptyMarker.repeat(this.cursorPosition) + positionalMarker + emptyMarker.repeat((this.width-1) - this.cursorPosition)); 
+
+		embed.addField("Cursor", emptyMarker.repeat(this.cursorPosition) + positionalMarker + emptyMarker.repeat((this.width-1) - this.cursorPosition));
 		embed.addField("Map", this.map.join("\n").replace(/,/g, ''));
-		
+
 		this.boardMessage.edit({embed});
 	}
 	**/
 
 	endSession() {
 		if(this.boardMessage != null) {
-			this.boardMessage.delete();
+			//this.boardMessage.delete();
 			this.channel.send("Game was ended!");
 		}
-		registeredListenersClasses.remove(this);
+		removeListener(this);
 	}
 
 	async drawBoard() {
 		var embed = new discord.RichEmbed()
 					.setTitle("Connect4")
 					.setAuthor(this.player1.username + " vs. " + this.player2.username)
-					.setFooter("You have 15 seconds to choose your move.");
-		
+					//.setFooter("You have 15 seconds to choose your move.");
+
 		embed.addField("Map", "1⃣2⃣3⃣4⃣5⃣6⃣7⃣" + "\n" +
 							  this.map.join("\n").replace(/,/g, ''));
-		
-					
+
+
 		//this.map.forEach(a => embed.addField("",a.join("")));
 
-		
+
 		return await this.channel.send({embed});
 	}
 
@@ -350,19 +380,20 @@ class Connect4Session { //red starts, which player gets red is random chance
 	async startSession() {
 		if(this.isSessionStarted == false) {
 			registeredListenersClasses.push(this);
-			
+
 			this.isSessionStarted = true
 			this.boardMessage = await this.drawBoard();
 			this.currentPlayingUser = this.playerOnRed;
+			this.channel.send("Alright " + pinging(this.playerOnRed) + ", it's your turn!")
 		}
 		else return;
 	}
-	
+
 	listenEvent(msg) {
 		if(this.currentPlayingUser !== null && this.currentPlayingUser.id === msg.author.id) {
 			if(msg.content === prefix + "endgame" || msg.content === prefix + "eg") return;
-			
-			
+
+
 			var num = parseInt(msg.content);
 			msg.delete();
 			if(isNaN(num) || num > this.width || num < 1)
@@ -374,21 +405,17 @@ class Connect4Session { //red starts, which player gets red is random chance
 }
 
 class EndGameCommand {
-	
-	constructor() {
-		this.connect4command = null;
-	}
-	
+
 	get alias() {
 		return ['endgame', 'eg'];
 	}
 
 	async run(args, bot, message) {
-		if(!this.connect4command.endPlayerSession(message.author)) {
+		if(!commands.get("Connect4").endPlayerSession(message.author)) {
 			await message.channel.send("You aren't currently in a game!");
 			return
 		}
-		
+
 		await message.channel.send("Game ended.");
 	}
 }
@@ -410,21 +437,68 @@ class SayCommand {
 	}
 }
 
-class HelpCommand {
+class ImageSearchCommand {
 
 	get alias() {
-		return ['help'];
+		return ['imgsearch', 'ims'];
 	}
 
 	async run(args, bot, message) {
 
 	}
-
 }
 
-const commands = [new TestCommand(), new OverloadCommand(), new SayCommand(), new HelpCommand(), new Connect4Command(), new EndGameCommand()];
+class EightBallCommand {
 
-commands[5].connect4command = commands[4];
+	constructor() {
+		this.positive = ['It is certain.', 'My sources say yes.', 'As I see it, yes.', 'Without a doubt.','It is decidedly so.', 'Yes - definitely.', 'You may rely on it.', 'Yes.', 'Absolutely.', 'Most likely.', 'Outlook good.', 'Signs point to yes.'];
+		this.negative = ["Don't count on it", 'My reply is no.', 'My sources say no.', 'Very doubtful.', 'Outlook not so good.', 'No.', 'Definitely not.', 'My sources say no.']
+	}
+
+	get alias() {
+		return ['8ball'];
+	}
+
+	async run(args, bot, message) {
+		if(args.length == 0) {
+			message.channel.send("What is your question?");
+			return;
+		}
+
+
+		var content = args.join(' ').toLowerCase();
+
+		if(( content.includes('hanny') || content.includes('rextheclone') )&&(content.includes('gay') || content.includes('homo') || content.includes('homosexual') || content.includes('faggot') || content.includes('fag')))
+			message.channel.send(this.positive[Math.floor(Math.random() * this.positive.length)])
+		else
+			message.channel.send((Math.random() < 0.5) ? this.positive[Math.floor(Math.random() * this.positive.length)] : this.negative[Math.floor(Math.random() * this.negative.length)] );
+	}
+}
+
+class HelpCommand {
+
+	get alias() {
+		return ['help']
+	}
+
+	async run(args, bot, message) {
+
+	}
+}
+
+
+const commands = new Map();
+commands.set("Test", new TestCommand());
+commands.set("Overload", new OverloadCommand());
+commands.set("Say", new SayCommand());
+commands.set("Connect4", new Connect4Command());
+commands.set("End Game", new EndGameCommand());
+commands.set("Image Search", new ImageSearchCommand());
+commands.set("Help", new HelpCommand());
+commands.set("8Ball", new EightBallCommand());
+
+//const commands = [new TestCommand(), new OverloadCommand(), new SayCommand(), new Connect4Command(), new EndGameCommand(), new ImageSearchCommand(), new HelpCommand(), new EightBallCommand()];
+//commands[4].connect4command = commands[3];
 
 bot.on('ready', () => {
 
@@ -433,31 +507,32 @@ bot.on('ready', () => {
 
 });
 
-const registeredListenersClasses = [];
+var registeredListenersClasses = [];
+
+function removeListener(listener) {
+
+	registeredListenersClasses = registeredListenersClasses.filter((val, index, arr) => val !== listener);
+
+}
 
 bot.on('message', async msg => {
-
 	if(msg.author.bot) return;
 
-	
 	registeredListenersClasses.forEach(c => c.listenEvent(msg));
-	
-	
+
 	if(!msg.content.startsWith(prefix)) return;
 
 	const args = msg.content.slice(prefix.length).trim().split(/ +/g);
 	const cmd = args.shift().toLowerCase();
 
-	for(var i = 0; i < commands.length; i++) {
-		var cmdClass = commands[i];
-		if(cmdClass.alias.includes(cmd)) {
+	for(var commandPair of commands) {
+		if(commandPair[1].alias.includes(cmd)) {
 
 			console.log("Running command " + cmd);
-			cmdClass.run(args, bot, msg, cmd);
+			commandPair[1].run(args, bot, msg, cmd);
 
 			return;
 		}
-
 	}
 });
 
