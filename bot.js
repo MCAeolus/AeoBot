@@ -6,6 +6,12 @@ function pinging(user) {
 	return "<@" + user.id + ">"
 }
 
+const debugMode = true;
+
+function log(prop, val, clazz) {
+	if(debugMode) console.log((typeof clazz !== 'undefined' ? clazz.constructor.name : "") + "#" + prop + "=" + val)
+}
+
 const discord = require('discord.js');
 const bot = new discord.Client();
 
@@ -13,7 +19,19 @@ const config = require('./conf.json');
 
 const prefix = '%';
 
+function makeCommandString(cmd) {
+	return prefix + cmd.alias[0]
+}
+
 class TestCommand {
+
+	get description() {
+		return 'The first command made for this bot. Displays the word \'testing\'.'
+	}
+
+	get icon() {
+		return '🤖'
+	}
 
 	get alias() {
 		return ['test','t','try','temp'];
@@ -38,15 +56,22 @@ class TestCommand {
 
 class OverloadCommand {
 
+	get description() {
+		return 'This is the bot\'s other original command. Reacts with all the current emojis uploaded to the server.'
+	}
+
+	get icon() {
+		return '🙀'
+	}
+
 	get alias() {
 		return ['overload', 'ol'];
 	}
 
 	async run(args, bot, message) {
-		var m = await message.channel.send("all server emojis.");
 		bot.emojis.array().forEach(
 			e => {
-			m.react(e);
+			message.react(e);
 		});
 	}
 }
@@ -57,15 +82,26 @@ class Connect4Command {
 		this.sessions = [];
 	}
 
+	get description() {
+		return 'Play a game of Connect 4 with a friend!'
+	}
+
+	get icon() {
+		return '🔴';
+	}
+
+	get arguments() {
+		return '<@user>'
+	}
+
 	get alias() {
 		return ['connect4'];
 	}
 
 	isCreatedMatch(user) {
-		this.sessions.forEach(
-		session => {
+		for(var session of this.sessions)
 			if(session.player1.id === user.id || session.player2.id === user.id) return true;
-		});
+
 		return false;
 	}
 
@@ -77,12 +113,12 @@ class Connect4Command {
 
 	endPlayerSession(user) {
 		if(this.isCreatedMatch(user)) {
-			this.sessios.forEach( s => {
-				if(s.player1.id === user.id || s.player2.id === user.id) {
-					this.endSession(s);
+			for(var session of this.sessions) {
+				if(session.player1.id === user.id || session.player2.id === user.id) {
+					this.endSession(session);
 					return true;
 				}
-			});
+			}
 		}
 		return false;
 	}
@@ -95,13 +131,13 @@ class Connect4Command {
 
 	async run(args, bot, message, cmdLabel) {
 		if(args.length == 0) {
-			this.timeoutMessage(message, "❌ Please specify a user to play Connect 4 with. (example usage: " + prefix + cmdLabel + " " + pinging(message.author) + ")", 5000, 0)
+			this.timeoutMessage(message, "❌ Please specify a user to play Connect 4 with. (example usage: " + makeCommandString(this) + " " + pinging(message.author) + ")", 5000, 0)
 			return;
 		} else {
 			const user1 = message.author;
 			const user2 = await bot.fetchUser(args[0].slice(2,args[0].length - 1)).catch(
 			er => {
-				this.timeoutMessage(message, "❌ Invalid user specified! (example usage: " + prefix + cmdLabel + " " + pinging(message.author) + ")", 5000, 5000)
+				this.timeoutMessage(message, "❌ Invalid user specified! (example usage: " + makeCommandString(this) + " " + pinging(message.author) + ")", 5000, 5000)
 				return
 			})
 
@@ -111,7 +147,7 @@ class Connect4Command {
 			}
 
 			if(this.isCreatedMatch(user1)) {
-				this.timeoutMessage(message, "❌ You have already sent an invite or are in a match! (to end your session, type " + prefix + "endgame)", 5000, 0)
+				this.timeoutMessage(message, "❌ You have already sent an invite or are in a match! (to end your session, type " + makeCommandString(commands.get('End Game')) + ")", 5000, 0)
 				return
 			}else if(this.isCreatedMatch(user2)) {
 				this.timeoutMessage(message, "❌ Specificed user is either already invited to a session or is currently playing a game!", 5000, 0)
@@ -157,7 +193,7 @@ const redMarker = "🔴";
 const blueMarker = "🔵";
 const emptyMarker = "⬛";
 
-class Connect4Session { //red starts, which player gets red is random chance
+class Connect4Session {
 
 	/**
 		- new message sent per player turn
@@ -191,6 +227,7 @@ class Connect4Session { //red starts, which player gets red is random chance
 		this.playerOnRed = (Math.random() < 0.5) ? this.player1 : this.player2
 
 		this.currentPlayingUser = null;
+		this.lockNewInputs = false;
 	}
 
 	/** old method using reacts for cursor position
@@ -238,9 +275,10 @@ class Connect4Session { //red starts, which player gets red is random chance
 	}
 	**/
 
-	playFromPosition(user, position) {
+	async playFromPosition(user, position) {
 		if(this.map[0][position] !== emptyMarker) {
 			this.channel.send("That column is full!");
+			this.lockNewInputs = false;
 			return false
 		}
 
@@ -274,10 +312,20 @@ class Connect4Session { //red starts, which player gets red is random chance
 			this.controller.endSession(this);
 
 			return true;
+		} else if(this.isStaleMate()) {
+			this.boardMessage = await this.drawBoard();
+			this.cannel.send("It's a tie! The board has been filled. Game over!");
+			this.controller.endSession(this);
+
+			return true;
 		}
 
 		this.finishTurn(user);
 		return true;
+	}
+
+	isStaleMate() {
+		return !this.map.join('').includes(emptyMarker);
 	}
 
 	/**
@@ -330,6 +378,7 @@ class Connect4Session { //red starts, which player gets red is random chance
 		this.boardMessage = await this.drawBoard();
 		this.currentPlayingUser = this.flipPlayer(user);
 		this.channel.send(pinging(this.currentPlayingUser) + ", it's your turn!");
+		this.lockNewInputs = false;
 	}
 
 	/**
@@ -361,12 +410,12 @@ class Connect4Session { //red starts, which player gets red is random chance
 	async drawBoard() {
 		var embed = new discord.RichEmbed()
 					.setTitle("Connect4")
-					.setAuthor(this.player1.username + " vs. " + this.player2.username)
+					.setAuthor(this.playerOnRed.username + redMarker + " vs. " + blueMarker + this.flipPlayer(this.playerOnRed).username)
 					//.setFooter("You have 15 seconds to choose your move.");
+
 
 		embed.addField("Map", "1⃣2⃣3⃣4⃣5⃣6⃣7⃣" + "\n" +
 							  this.map.join("\n").replace(/,/g, ''));
-
 
 		//this.map.forEach(a => embed.addField("",a.join("")));
 
@@ -391,7 +440,7 @@ class Connect4Session { //red starts, which player gets red is random chance
 	}
 
 	listenEvent(msg) {
-		if(this.currentPlayingUser !== null && this.currentPlayingUser.id === msg.author.id) {
+		if(this.currentPlayingUser !== null && this.currentPlayingUser.id === msg.author.id && !this.lockNewInputs) {
 			if(msg.content === prefix + "endgame" || msg.content === prefix + "eg") return;
 
 
@@ -399,13 +448,28 @@ class Connect4Session { //red starts, which player gets red is random chance
 			msg.delete();
 			if(isNaN(num) || num > this.width || num < 1)
 				this.channel.send("That's not a valid number! Try again.");
-			else this.playFromPosition(this.currentPlayingUser, num-1)
+			else {
+				this.lockNewInputs = true;
+				this.playFromPosition(this.currentPlayingUser, num-1)
+			}
 		}
 	}
 
 }
 
+class CheckersCommand {
+
+} //TODO
+
 class EndGameCommand {
+
+	get description() {
+		return 'This command will stop any games you are currently playing in.'
+	}
+
+	get icon() {
+		return '🛑';
+	}
 
 	get alias() {
 		return ['endgame', 'eg'];
@@ -421,18 +485,33 @@ class EndGameCommand {
 	}
 }
 
-
 class SayCommand {
+
+	get description() {
+		return 'Make the bot say whatever you want!'
+	}
+
+	get icon() {
+		return '📣'
+	}
+
+	get arguments() {
+		return '<text to say>'
+	}
 
 	get alias() {
 		return ['say'];
 	}
 
-	async run(args, bot, message) {
+	async run(args, bot, message, cmd) {
+		if(args.length == 0) {
+			var m = await message.channel.send("You must specify what you want to say! ( for example " + makeCommandString(this) + " AeoBot is the best! )");
+			m.delete(10000);
+			return;
+		}
 
 		var rem = args.join(" ");
 
-		console.log(rem);
 		var m = await message.channel.send(rem);
 		message.delete();
 	}
@@ -440,11 +519,58 @@ class SayCommand {
 
 class ImageSearchCommand {
 
+	get description() {
+		return 'Search up the top google result for an image attachment, image link, or the most recent image posted in chat.'
+	}
+
+	get icon() {
+		return '🔎'
+	}
+
+	get arguments() {
+		return ['[image url **OR** image attachment]']
+	}
+
 	get alias() {
 		return ['imgsearch', 'ims'];
 	}
 
+	getImageFromMessage(message) {
+		//if(message.)
+
+		return null;
+	}
+
 	async run(args, bot, message) {
+
+		var img = null;
+
+		if(args.length == 0) {
+			img = this.getImageFromMessage(message);
+
+			if(img == null) {
+				message.channel.fetchMessages({limit:10})
+				.then((messages => {
+					for(var mColl of messages) {
+						const msg = mColl[1];
+
+						const msgImg = this.getImageFromMessage(msg);
+
+						if(msgImg != null) {
+							img = msgImg;
+							break;
+						}
+					}
+				}).bind(this));
+
+				if(img == null) {
+					message.channel.send("There are no recent images sent in this channel! Try specifying an image (or image link) instead.")
+					return;
+				}
+			}
+		} else {
+
+		}
 
 	}
 }
@@ -454,6 +580,18 @@ class EightBallCommand {
 	constructor() {
 		this.positive = ['It is certain.', 'My sources say yes.', 'As I see it, yes.', 'Without a doubt.','It is decidedly so.', 'Yes - definitely.', 'You may rely on it.', 'Yes.', 'Absolutely.', 'Most likely.', 'Outlook good.', 'Signs point to yes.'];
 		this.negative = ["Don't count on it", 'My reply is no.', 'My sources say no.', 'Very doubtful.', 'Outlook not so good.', 'No.', 'Definitely not.', 'My sources say no.']
+	}
+
+	get description() {
+		return 'Ask the omniscient bot a yes or no question and get it\'s factual answer.'
+	}
+
+	get icon() {
+		return '🎱';
+	}
+
+	get arguments() {
+		return '<your question>'
 	}
 
 	get alias() {
@@ -478,15 +616,62 @@ class EightBallCommand {
 
 class HelpCommand {
 
+	get icon() {
+		return '🤔';
+	}
+
+	get description() {
+		return 'Lists information on all the commands this bot has to offer.'
+	}
+
+	get arguments() {
+		return '[page number]'
+	}
+
 	get alias() {
 		return ['help']
 	}
 
 	async run(args, bot, message) {
+		var embed = new discord.RichEmbed()
+					.setTitle("❔ Help ❔")
+					//.setFooter("Requested by " + message.author.username + ".")
+					.setColor('RANDOM')
+					.setDescription('🔑\n<> = required argument\n[] = optional argument'); //need to see about this
 
+		const howManyToShow = 4;
+		var startIndex = 0;
+
+		const totalPages = Math.ceil(commands.size / howManyToShow)
+		var onPage = 1;
+
+		if(args.length > 0) {
+			const count = parseInt(args[0]);
+			if(!isNaN(count))
+				if(count <= totalPages) {
+					startIndex = ((count-1) * howManyToShow)
+					onPage = count;
+				} else {
+					message.channel.send("❌ The page number specified is not available!")
+					return;
+				}
+		}
+
+		embed.setFooter("[Page " + onPage + "/" + totalPages + "] Specify a page number to see it. (for instance " + makeCommandString(this) + " " + (Math.floor(Math.random() * totalPages) + 1) + ")");
+
+		//embed.addBlankField();
+		for(var i = startIndex ; i < (startIndex + howManyToShow > commands.size ? commands.size-1 : startIndex + howManyToShow) ; i++) {
+			const key = Array.from(commands.keys())[i];
+			const cmd = commands.get(key);
+
+			embed.addField((typeof cmd.icon !== "undefined" ? cmd.icon : "") + key + " ( " + makeCommandString(cmd) + (typeof cmd.arguments !== "undefined" ? " " + cmd.arguments : "" ) + " )",
+			 				typeof cmd.description !== "undefined" ? cmd.description : "Description not available.");
+			embed.addBlankField();
+		}
+
+		await message.channel.send({embed});
 	}
 }
-
 
 const commands = new Map();
 commands.set("Test", new TestCommand());
@@ -504,7 +689,7 @@ commands.set("8Ball", new EightBallCommand());
 bot.on('ready', () => {
 
 	console.log("bot running.");
-	bot.user.setActivity("Hanny's number 1 fan 💋 ( " + prefix + "help for info )");
+	bot.user.setActivity("Hanny's number 1 fan 💋 ( " + makeCommandString(commands.get('Help')) + " for info )");
 
 });
 
