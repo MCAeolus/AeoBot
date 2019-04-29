@@ -19,6 +19,9 @@ const config = require('./conf.json');
 
 const prefix = '%';
 
+const vision = require('@google-cloud/vision');
+const vision_client = new vision.ImageAnnotatorClient();
+
 function makeCommandString(cmd) {
 	return prefix + cmd.alias[0]
 }
@@ -569,8 +572,12 @@ class ImageSearchCommand {
 				}
 			}
 		} else {
+			img = args[0];
 
 		}
+
+		const results = await vision_client.labelDetections(img);
+		console.log(results.labelAnnotations.join(' '));
 
 	}
 }
