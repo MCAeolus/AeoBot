@@ -8,8 +8,8 @@ function pinging(user) {
 
 const debugMode = true;
 
-function log(prop, val, clazz) {
-	if(debugMode) console.log((typeof clazz !== 'undefined' ? clazz.constructor.name : "") + "#" + prop + "=" + val)
+function log(prop, val, inf, clazz) {
+	if(debugMode) console.log((typeof clazz !== 'undefined' ? clazz.constructor.name : "") + "#" + prop + " " + inf + "=" + val)
 }
 
 const discord = require('discord.js');
@@ -17,10 +17,14 @@ const bot = new discord.Client();
 
 const config = require('./conf.json');
 
+const request = require('request');
+
 const prefix = '%';
 
+/*
 const vision = require('@google-cloud/vision');
 const vision_client = new vision.ImageAnnotatorClient();
+*/
 
 function makeCommandString(cmd) {
 	return prefix + cmd.alias[0]
@@ -520,6 +524,7 @@ class SayCommand {
 	}
 }
 
+const imageSearchBaseURL = 'https://images.google.com/searchbyimage?image_url=';
 class ImageSearchCommand {
 
 	get description() {
@@ -539,45 +544,78 @@ class ImageSearchCommand {
 	}
 
 	getImageFromMessage(message) {
-		//if(message.)
-
+		for(var attchFlake of message.attachments) {
+			const attachment = attchFlake[1];
+			
+			if(!isNaN(attachment.height)) return attachment.url;
+		}
 		return null;
 	}
+	
+	getNextGoogleResult(html) {
+		
+		var index = html.indexOf('<h3 class="LC20lb">');
+		var index2 = html.indexOf('</h3>', index);
+		
+		log("getNextGoogleResult()", index, "index1", this);
+		log("getNextGoogleResult()", index2, "index2", this);
+		
+		return [html.substring(index, index2), html.substring(index2)];
+	}	
 
 	async run(args, bot, message) {
 
+		//message.channel.send("This command is temporarily disabled due to Google services requiring funds to use their vision API. Come back later!");
+		//return;
+	
+		//get back to all this when i get payment stuff figured out
+	
 		var img = null;
 
 		if(args.length == 0) {
 			img = this.getImageFromMessage(message);
 
 			if(img == null) {
-				message.channel.fetchMessages({limit:10})
+				await message.channel.fetchMessages({limit:10})
 				.then((messages => {
 					for(var mColl of messages) {
 						const msg = mColl[1];
 
 						const msgImg = this.getImageFromMessage(msg);
 
-						if(msgImg != null) {
+						log("msgImg", msgImg, this);
+						
+						if(msgImg !== null) 
+						{
 							img = msgImg;
 							break;
 						}
 					}
 				}).bind(this));
-
+					
 				if(img == null) {
 					message.channel.send("There are no recent images sent in this channel! Try specifying an image (or image link) instead.")
 					return;
 				}
 			}
 		} else {
-			img = args[0];
+			img = args[0]; //need to do detection stuff
 
 		}
-
-		const results = await vision_client.labelDetections(img);
-		console.log(results.labelAnnotations.join(' '));
+		
+		//if(img != null)
+		request(imageSearchBaseURL + img, (function(err, response, body) {
+			//body.querySelectorAll('h3')
+			
+			console.log(body);
+			
+			var result = this.getNextGoogleResult(body)[0];
+			
+			console.log(result);
+		}).bind(this));
+			
+		//const results = await vision_client.labelDetection(img);
+		//console.log(results.labelAnnotations.join(' '));
 
 	}
 }
