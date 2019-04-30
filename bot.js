@@ -565,8 +565,8 @@ class ImageSearchCommand {
 
 	async run(args, bot, message) {
 
-		//message.channel.send("This command is temporarily disabled due to Google services requiring funds to use their vision API. Come back later!");
-		//return;
+		message.channel.send("This command is temporarily disabled due to Google services requiring funds to use their vision API. Come back later!");
+		return;
 	
 		//get back to all this when i get payment stuff figured out
 	
