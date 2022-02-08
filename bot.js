@@ -1,5 +1,3 @@
-import Command from './command.js';
-
 function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -718,8 +716,8 @@ class HelpCommand {
 }
 
 const commands = new Map();
-commands.set("Test", new Command(alias=["test"]));
-//commands.set("Test", new TestCommand());
+//commands.set("Test", new Command(alias=["test"]));
+commands.set("Test", new TestCommand());
 commands.set("Overload", new OverloadCommand());
 commands.set("Say", new SayCommand());
 commands.set("Connect4", new Connect4Command());
