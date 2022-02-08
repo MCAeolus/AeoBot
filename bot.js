@@ -1,3 +1,5 @@
+import Command from './command.js';
+
 function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
