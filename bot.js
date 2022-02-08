@@ -652,10 +652,7 @@ class EightBallCommand {
 
 		var content = args.join(' ').toLowerCase();
 
-		if(( content.includes('hanny') || content.includes('rextheclone') )&&(content.includes('gay') || content.includes('homo') || content.includes('homosexual') || content.includes('faggot') || content.includes('fag')))
-			message.channel.send(this.positive[Math.floor(Math.random() * this.positive.length)])
-		else
-			message.channel.send((Math.random() < 0.5) ? this.positive[Math.floor(Math.random() * this.positive.length)] : this.negative[Math.floor(Math.random() * this.negative.length)] );
+		message.channel.send((Math.random() < 0.5) ? this.positive[Math.floor(Math.random() * this.positive.length)] : this.negative[Math.floor(Math.random() * this.negative.length)] );
 	}
 }
 
@@ -719,7 +716,8 @@ class HelpCommand {
 }
 
 const commands = new Map();
-commands.set("Test", new TestCommand());
+commands.set("Test", new Command(alias=["test"]));
+//commands.set("Test", new TestCommand());
 commands.set("Overload", new OverloadCommand());
 commands.set("Say", new SayCommand());
 commands.set("Connect4", new Connect4Command());
