@@ -1,6 +1,6 @@
 class Command {
 
-    constructor(run=(args, bot, message)=>await message.channel.send("This command has unconfigured run behavior"),
+    constructor(run=(args, bot, message, cmdLabel)=>await message.channel.send("This command has unconfigured run behavior"),
                 description="Default command description.", 
                 icon="",
                 alias=[""]
@@ -23,8 +23,8 @@ class Command {
         return this.alias;
 	}
 
-	async run(args, bot, message) {
-        this.runfunc(args, bot, message);
+	async run(args, bot, message, cmdLabel) {
+        this.runfunc(args, bot, message, cmdLabel);
 	}
 
 }
