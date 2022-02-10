@@ -2,6 +2,7 @@
   "name": "AeoBot",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -18,7 +19,7 @@
   },
   "homepage": "https://github.com/MCAeolus/AeoBot#readme",
   "dependencies": {
-    "discord.js": "^11.4.2",
+    "discord.js": "^13.6.0",
     "request": "^2.88.0"
   }
 }
