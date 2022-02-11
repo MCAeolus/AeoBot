@@ -1,4 +1,4 @@
-import { constants } from 'buffer';
+import { constants } from 'fs';
 import { access, readFile, writeFile } from 'fs/promises';
 
 
@@ -29,7 +29,7 @@ export class Storage {
 
     async initJSON() {
         try {
-            await access(this.filePath);
+            await access(this.filePath, constants.F_OK);
         } catch {
             await writeFile(this.filePath, '{}', {flag: 'wx'});
             console.log(`Created file ${this.fileName}.`);
