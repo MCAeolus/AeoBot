@@ -16,6 +16,7 @@ export class TestCommand extends Command {
                 }
                 m.delete(5000).catch();
                 message.delete();
+                bot.array.forEach();
             },
             "The first command made for this bot. Displays the word 'testing'.",
             '🤖',
