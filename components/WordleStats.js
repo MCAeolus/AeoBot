@@ -132,11 +132,28 @@ class WordleStats {
         juser.leaderboard_score = score;
     }
 
+    findWordleChannel(guild) {
+        var retChannel = wordleChannelMap.get(guild);
+
+        if (retChannel == null) {
+            for (var channel of guild.channels.cache.values()) {
+                if (channel.name.toLowerCase() === "wordle" && channel.isText()) {
+                    retChannel = channel;
+                    break;
+                }
+            }
+            wordleChannelMap[guild] = retChannel;
+        }
+        return retChannel;
+    }
+
     listenEvent(msg) {
-        const expectedChannel = wordleChannelMap.get(msg.guild);
+        console.log("wordle event");
+        const expectedChannel = this.findWordleChannel(msg.guild);
         const channel = msg.channel;
         if (expectedChannel == null || expectedChannel.id !== channel.id) return;
-        this.checkAndDoScoreUpdate(msg);  
+        console.log("is in appropriate channel");
+        this.checkAndDoScoreUpdate(msg);
     }
 }
 
@@ -167,23 +184,8 @@ export class WordleCommand extends Command {
         )
     }
 
-    findWordleChannel(guild) {
-        var retChannel = wordleChannelMap.get(guild);
-
-        if (retChannel == null) {
-            for (var channel of guild.channels.cache.values()) {
-                if (channel.name.toLowerCase() == "wordle" && channel.isText()) {
-                    retChannel = channel;
-                    break;
-                }
-            }
-            wordleChannelMap[guild] = retChannel;
-        }
-        return retChannel;
-    }
-
     async run(args, bot, message, cmdLabel) {
-        const wordleChannel = this.findWordleChannel(message.guild);
+        const wordleChannel = wordleStats.findWordleChannel(message.guild);
         if (wordleChannel == null) {
             message.channel.send("❌ This server does not have a #wordle text channel.");
             return;

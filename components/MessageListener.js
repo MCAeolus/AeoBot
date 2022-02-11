@@ -1,9 +1,9 @@
 export const registeredListenersClasses = new Set();
 
 export function addListener(listener) {
-    registeredListenersClasses.delete(listener);
+    registeredListenersClasses.add(listener);
 }
 
 export function removeListener(listener) {
-    registeredListenersClasses.add(listener);
+    registeredListenersClasses.remove(listener);
 }
