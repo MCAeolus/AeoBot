@@ -103,7 +103,7 @@ class WordleStats {
         return null;
     }
 
-    checkAndDoScoreUpdate(msg) {
+    checkAndDoScoreUpdate(msg, sendMessage=false) {
         const msgcontent = this.getStatsFromMessage(msg);
         if (msgcontent == null) return;
 
@@ -116,6 +116,12 @@ class WordleStats {
         juser.checked_days.push(msgcontent.day);
         juser.win_distribution[msgcontent.score]++;
         this.calculateLeaderboardScore(msg.author, msg.guild);
+        if (sendMessage) {
+            const embed = new MessageEmbed().setTitle("Wordle Submission")
+                .addField(`${msg.author.username} - ${juser.leaderboard_score}`, `Your submission for day ${msgcontent.day} has been recorded!`);
+            msg.channel.send({embeds: [embed]});
+        }
+        wordleStorage.save();
     }
     /*
     score = 10*(found in 1) + 7*(found in 2) + 4*(found in 3) + 3*(found in 4) + 2*(found in 5) + (found in 6) 
@@ -125,7 +131,7 @@ class WordleStats {
     calculateLeaderboardScore(user, guild) {
         const juser = wordleStorage.getUser(user, guild);
         var score = 0;
-        for (var i = 1; i < 6; i++) {
+        for (var i = 1; i <= 6; i++) {
             score += juser.win_distribution[i]*scoreMapping[i];
         }
 
@@ -148,12 +154,10 @@ class WordleStats {
     }
 
     listenEvent(msg) {
-        console.log("wordle event");
         const expectedChannel = this.findWordleChannel(msg.guild);
         const channel = msg.channel;
         if (expectedChannel == null || expectedChannel.id !== channel.id) return;
-        console.log("is in appropriate channel");
-        this.checkAndDoScoreUpdate(msg);
+        this.checkAndDoScoreUpdate(msg, true);
     }
 }
 
