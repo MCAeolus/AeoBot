@@ -125,7 +125,6 @@ class WordleStats {
     }
     /*
     score = 10*(found in 1) + 7*(found in 2) + 4*(found in 3) + 3*(found in 4) + 2*(found in 5) + (found in 6) 
-    score -= 3*(not found)
     */
 
     calculateLeaderboardScore(user, guild) {
